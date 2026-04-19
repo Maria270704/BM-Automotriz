@@ -1,0 +1,72 @@
+{
+  "servicios": [
+    {
+      "id": 1,
+      "titulo": "MECÁNICA GENERAL",
+      "descripcion": "Haz clic aquí para chatear con nuestro equipo experto en reparación y mantenimiento.",
+      "icono": "🔧"
+    },
+    {
+      "id": 2,
+      "titulo": "DIAGNÓSIS CON ESCANER",
+      "descripcion": "Haz clic aquí para chatear con nuestro equipo experto en reparación y mantenimiento.",
+      "icono": "💻"
+    },
+    {
+      "id": 3,
+      "titulo": "MANTENIMIENTO PREVENTIVO",
+      "descripcion": "Haz clic aquí para chatear con nuestro equipo experto en reparación y mantenimiento.",
+      "icono": "🛠️"
+    }
+  ],
+  "citas": [
+    {
+      "fechaDeseada": "2026-05-19",
+      "placa": "12V5T0",
+      "marca": "Toyoca",
+      "modelo": "Corola",
+      "color": "rojo",
+      "propietario": "carlos lopez",
+      "cedula": "12665790",
+      "telefono": "0424567231",
+      "fechaRegistro": "18/4/2026, 5:44:25 p. m.",
+      "id": 2
+    },
+    {
+      "fechaDeseada": "2026-12-09",
+      "placa": "RT120UP",
+      "marca": "Hyunda",
+      "modelo": "Tucson",
+      "color": "Gris",
+      "propietario": "Juan Gomez",
+      "cedula": "15664720",
+      "telefono": "0416789234",
+      "fechaRegistro": "18/4/2026, 6:01:06 p. m.",
+      "id": 3
+    },
+    {
+      "fechaDeseada": "2026-12-09",
+      "placa": "B5TV09",
+      "marca": "Ford",
+      "modelo": "Puma",
+      "color": "Blanco",
+      "propietario": "Cesar Suarez",
+      "cedula": "25678321",
+      "telefono": "04226547890",
+      "fechaRegistro": "18/4/2026, 6:04:19 p. m.",
+      "id": 4
+    },
+    {
+      "fechaDeseada": "2027-05-12",
+      "placa": "N5XV07",
+      "marca": "Ford",
+      "modelo": "Puma",
+      "color": "gris",
+      "propietario": "Cesar Moncada",
+      "cedula": "25678321",
+      "telefono": "04226547890",
+      "fechaRegistro": "18/4/2026, 6:21:02 p. m.",
+      "id": 5
+    }
+  ]
+}

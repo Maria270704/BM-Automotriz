@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BM Automotriz | Gestión de Taller</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        /* Tus estilos aquí (mantener igual que antes) */
+        html { scroll-behavior: smooth; }
+        .bg-dark-gray { background-color: #111111; }
+        .bg-card-gray { background-color: #1a1a1a; }
+        .text-bm-red { color: #e60000; }
+        .bg-bm-red { background-color: #e60000; }
+        .border-bm-red { border-color: #e60000; }
+        /* ... resto de estilos ... */
+        
+        #toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .toast {
+            background-color: #1a1a1a;
+            border-left: 4px solid #e60000;
+            color: white;
+            padding: 16px 24px;
+            border-radius: 4px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 300px;
+            animation: slideIn 0.3s ease-out forwards;
+            font-size: 0.875rem;
+            font-weight: 700;
+            font-style: italic;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        .toast.fade-out {
+            animation: slideOut 0.3s ease-in forwards;
+        }
+        @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+        .modal { display: none; position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,0.95); backdrop-filter: blur(8px); align-items: center; justify-content: center; }
+        .modal.active { display: flex; }
+        #adminPanel { display: none; }
+        input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
+        .kanban-column { background: #0f0f0f; border-radius: 12px; border: 1px solid #2a2a2a; }
+        .task-card { background: #1a1a1a; border-left: 3px solid #e60000; transition: all 0.2s; }
+        .task-card:hover { transform: translateY(-2px); background: #222; }
+        .category-badge { background: #2a2a2a; font-size: 10px; font-weight: bold; letter-spacing: 0.5px; }
+        .scrollbar-thin::-webkit-scrollbar { height: 4px; width: 4px; }
+        .scrollbar-thin::-webkit-scrollbar-track { background: #1a1a1a; }
+        .scrollbar-thin::-webkit-scrollbar-thumb { background: #e60000; border-radius: 10px; }
+        .pdf-report { font-family: 'Helvetica', 'Arial', sans-serif; padding: 30px; background: white; color: #111; }
+        .pdf-report h1 { color: #e60000; font-size: 28px; border-bottom: 2px solid #e60000; padding-bottom: 10px; margin-bottom: 20px; text-transform: uppercase; }
+        .pdf-report table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        .pdf-report th, .pdf-report td { border: 1px solid #ddd; padding: 10px; text-align: left; font-size: 12px; }
+        .pdf-report th { background-color: #e60000; color: white; text-transform: uppercase; }
+        .pdf-report .total-row { background-color: #f0f0f0; font-weight: bold; }
+        .citas-table-container { background: #0a0a0a; border-radius: 12px; border: 1px solid #2a2a2a; overflow-x: auto; }
+        .citas-table { width: 100%; min-width: 1000px; }
+        .citas-table th { background: #1a1a1a; color: #e60000; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; padding: 14px 12px; }
+        .citas-table td { padding: 12px; border-bottom: 1px solid #1f1f1f; }
+        .status-pendiente { background: #854d0e; color: #fef08a; padding: 4px 8px; border-radius: 20px; font-size: 10px; display: inline-block; }
+        .status-aprobada { background: #15803d; color: #dcfce7; padding: 4px 8px; border-radius: 20px; font-size: 10px; display: inline-block; }
+        .status-rechazada { background: #991b1b; color: #fee2e2; padding: 4px 8px; border-radius: 20px; font-size: 10px; display: inline-block; }
+        .btn-aprobar { background: #15803d; }
+        .btn-aprobar:hover { background: #166534; transform: scale(1.05); }
+        .btn-rechazar { background: #991b1b; }
+        .btn-rechazar:hover { background: #7f1d1d; transform: scale(1.05); }
+        .cliente-badge { background: #1e3a5f; color: #93c5fd; padding: 2px 8px; border-radius: 12px; font-size: 9px; display: inline-block; margin-top: 4px; }
+        .costo-badge { background: #2d3748; color: #fbbf24; padding: 2px 8px; border-radius: 12px; font-size: 9px; display: inline-block; margin-top: 4px; margin-left: 4px; }
+    </style>
+</head>
+<body class="bg-dark-gray text-white font-sans antialiased">
+
+    <div id="toast-container"></div>
+
+    <!-- Página pública -->
+    <div id="publicSite">
+        <header class="fixed top-0 w-full z-50 flex justify-between items-center p-6 bg-black/95 backdrop-blur-sm border-b border-gray-800">
+            <div class="flex items-center gap-2">
+                <div class="w-12 h-8 bg-bm-red rounded-t-full rounded-bl-full flex items-center justify-center font-bold italic">BM</div>
+                <span class="font-bold text-xl tracking-wider uppercase italic">BM AUTOMOTRIZ</span>
+            </div>
+            <nav class="hidden md:flex gap-8 text-sm font-semibold text-gray-300 items-center">
+                <a href="#home" class="nav-link hover:text-bm-red transition uppercase">Home</a>
+                <a href="#servicios" class="nav-link hover:text-bm-red transition uppercase">Servicios</a>
+                <a href="#nosotros" class="nav-link hover:text-bm-red transition uppercase">Nosotros</a>
+                <a href="#contacto" class="nav-link hover:text-bm-red transition uppercase">Contacto</a>
+                <button onclick="openModal('modalAdmin')" class="ml-4 border border-zinc-600 px-3 py-1.5 rounded text-[11px] font-bold uppercase text-zinc-400 hover:text-white hover:border-white transition flex items-center gap-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-3.614A9.99 9.99 0 0014.5 12H19.5m-5-5a5 5 0 11-10 0 5 5 0 0110 0z" /></svg>
+                    ADMIN
+                </button>
+            </nav>
+            <button onclick="openModal('modalCita')" class="bg-bm-red hover:bg-red-700 text-white font-bold py-2 px-6 rounded transition text-sm uppercase">AGENDAR CITA</button>
+        </header>
+
+        <section class="relative bg-zinc-900 h-screen min-h-[600px] flex flex-col justify-center px-10 border-b-4 border-bm-red">
+            <div class="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1613214149922-f1809c99b414?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80')] bg-cover bg-center opacity-30"></div>
+            <div class="relative z-10 max-w-2xl">
+                <h1 class="text-5xl md:text-7xl font-black italic text-bm-red mb-2 uppercase">BM Automotriz:</h1>
+                <h2 class="text-4xl md:text-5xl font-bold italic mb-4 uppercase leading-tight">Tu taller de confianza</h2>
+                <p class="text-lg text-gray-300 max-w-md border-l-4 border-bm-red pl-4">Excelencia técnica y atención personalizada en San Cristóbal.</p>
+            </div>
+        </section>
+
+        <section id="servicios" class="py-24 px-10 max-w-6xl mx-auto text-center scroll-mt-24">
+            <h3 class="text-3xl font-bold mb-12 tracking-widest uppercase italic"><span class="text-bm-red">//</span> Servicios</h3>
+            <div id="servicios-container" class="grid grid-cols-1 md:grid-cols-3 gap-8"></div>
+        </section>
+
+        <section id="nosotros" class="py-32 px-10 bg-black text-center border-t border-gray-800 scroll-mt-24">
+            <div class="max-w-6xl mx-auto">
+                <h3 class="text-4xl font-black mb-12 tracking-widest uppercase italic flex justify-center items-center gap-3"><span class="text-bm-red">//</span> NOSOTROS</h3>
+                <p class="text-gray-300 text-lg leading-relaxed max-w-4xl mx-auto mb-16">En BM Automotriz combinamos años de experiencia en mecánica especializada con tecnología de diagnóstico avanzada. Nuestro compromiso es la transparencia y la calidad.</p>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="overflow-hidden rounded shadow-2xl"><img src="https://images.unsplash.com/photo-1530906358829-e84b2769270f?auto=format&fit=crop&w=600&q=80" class="w-full h-72 object-cover grayscale hover:grayscale-0 transition duration-700 transform hover:scale-105"></div>
+                    <div class="overflow-hidden rounded shadow-2xl"><img src="https://images.unsplash.com/photo-1619642751034-765dfdf7c58e?auto=format&fit=crop&w=600&q=80" class="w-full h-72 object-cover grayscale hover:grayscale-0 transition duration-700 transform hover:scale-105"></div>
+                    <div class="overflow-hidden rounded shadow-2xl"><img src="https://images.unsplash.com/photo-1625047509168-a7026f36de04?auto=format&fit=crop&w=600&q=80" class="w-full h-72 object-cover grayscale hover:grayscale-0 transition duration-700 transform hover:scale-105"></div>
+                </div>
+            </div>
+        </section>
+
+        <section id="contacto" class="py-20 bg-card-gray border-y-2 border-bm-red flex flex-col items-center text-center scroll-mt-24">
+            <h3 class="text-4xl font-black uppercase italic mb-8">¿Necesitas ayuda?</h3>
+            <a href="https://wa.me/584147085371" target="_blank" class="bg-green-600 hover:bg-green-700 text-white font-black py-5 px-12 rounded-full shadow-2xl transition transform hover:scale-105 inline-block text-xl tracking-widest">WHATSAPP DIRECTO</a>
+        </section>
+
+        <footer class="bg-black border-t-4 border-bm-red p-12 text-center text-gray-500 text-sm italic">&copy; 2026 BM Automotriz - San Cristóbal, Táchira.</footer>
+    </div>
+
+    <!-- PANEL ADMINISTRATIVO -->
+    <div id="adminPanel" class="min-h-screen bg-dark-gray p-6">
+        <div class="flex justify-between items-center mb-6 border-b border-bm-red pb-4 flex-wrap gap-4">
+            <div>
+                <h2 class="text-3xl font-black italic uppercase text-bm-red tracking-tight">🔧 Panel de Mantenimientos</h2>
+                <p class="text-gray-400 text-xs mt-1">Gestión de órdenes de trabajo, categorías y citas</p>
+            </div>
+            <div class="flex gap-3">
+                <button onclick="exportarCompletadosPDF()" class="bg-green-700 hover:bg-green-800 px-5 py-2 rounded text-sm font-bold uppercase transition">📄 Exportar Completados PDF</button>
+                <button onclick="openModal('modalCategoria')" class="bg-zinc-800 hover:bg-zinc-700 border border-gray-600 px-5 py-2 rounded text-sm font-bold uppercase transition">+ Nueva Categoría</button>
+                <button onclick="cerrarSesion()" class="bg-bm-red hover:bg-red-700 px-6 py-2 rounded text-sm font-bold uppercase transition">Cerrar Sesión</button>
+            </div>
+        </div>
+
+        <div class="mb-8">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold uppercase italic text-bm-red">📋 GESTIÓN DE CITAS <span id="totalCitasCount" class="text-xs bg-zinc-800 px-3 py-1 rounded-full ml-2">0</span></h3>
+                <button onclick="cargarCitas()" class="text-xs bg-zinc-800 hover:bg-zinc-700 px-3 py-1 rounded">🔄 Actualizar</button>
+            </div>
+            <div class="citas-table-container">
+                <table class="citas-table">
+                    <thead><tr><th>ID</th><th>Fecha</th><th>Vehículo</th><th>Propietario</th><th>Teléfono</th><th>Estado</th><th>Acciones</th></tr></thead>
+                    <tbody id="tablaCitasBody"><tr><td colspan="7" class="text-center py-8">Cargando...</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div>
+            <h3 class="text-xl font-bold uppercase italic text-bm-red mb-4">🔧 ÓRDENES DE TRABAJO</h3>
+            <div id="kanbanContainer" class="flex gap-6 overflow-x-auto pb-6 scrollbar-thin" style="min-height: 60vh;"></div>
+        </div>
+
+        <button onclick="abrirModalNuevaTarea()" class="fixed bottom-8 right-8 bg-bm-red hover:bg-red-700 w-14 h-14 rounded-full shadow-2xl flex items-center justify-center text-2xl font-black transition transform hover:scale-105 z-30">+</button>
+    </div>
+
+    <!-- MODALES (igual que antes) -->
+    <div id="modalCategoria" class="modal"><div class="bg-card-gray w-full max-w-md p-8 rounded border-t-4 border-bm-red relative"><button onclick="closeModal('modalCategoria')" class="absolute top-4 right-4 text-gray-500 hover:text-white text-2xl">&times;</button><h3 class="text-xl font-bold mb-6 uppercase italic text-bm-red">➕ Nueva categoría</h3><form id="formCategoria"><input type="text" id="nombreCategoria" placeholder="Nombre de la categoría" required class="w-full bg-zinc-800 border border-zinc-700 p-3 rounded mb-4"><button type="submit" class="w-full bg-bm-red py-3 font-black uppercase rounded hover:bg-red-700">Crear</button></form></div></div>
+
+    <div id="modalTarea" class="modal"><div class="bg-card-gray w-full max-w-lg p-8 rounded border-t-4 border-bm-red relative"><button onclick="closeModal('modalTarea')" class="absolute top-4 right-4 text-gray-500 hover:text-white text-2xl">&times;</button><h3 class="text-xl font-bold mb-6 uppercase italic text-bm-red">📝 Nueva orden</h3><form id="formTarea"><input type="hidden" id="tareaCategoriaId"><input type="text" id="tituloTarea" placeholder="Título" required class="w-full bg-zinc-800 border border-zinc-700 p-3 rounded mb-3"><textarea id="descripcionTarea" placeholder="Descripción" rows="3" class="w-full bg-zinc-800 border border-zinc-700 p-3 rounded mb-3"></textarea><div class="grid grid-cols-2 gap-3 mb-4"><select id="clienteTarea" class="bg-zinc-800 border border-zinc-700 p-3 rounded"><option value="">-- Seleccionar Cliente --</option></select><input type="date" id="fechaTarea" class="bg-zinc-800 border border-zinc-700 p-3 rounded"></div><input type="number" id="costoTarea" placeholder="Costo (USD $)" step="0.01" class="w-full bg-zinc-800 border border-zinc-700 p-3 rounded mb-3"><select id="estadoTarea" class="w-full bg-zinc-800 border border-zinc-700 p-3 rounded mb-4"><option value="Pendiente">⏳ Pendiente</option><option value="En Proceso">🔧 En Proceso</option><option value="Completado">✅ Completado</option></select><button type="submit" class="w-full bg-bm-red py-3 font-black uppercase rounded hover:bg-red-700">Guardar</button></form></div></div>
+
+    <div id="modalEditarTarea" class="modal"><div class="bg-card-gray w-full max-w-lg p-8 rounded border-t-4 border-bm-red relative"><button onclick="closeModal('modalEditarTarea')" class="absolute top-4 right-4 text-gray-500 hover:text-white text-2xl">&times;</button><h3 class="text-xl font-bold mb-6 uppercase italic text-bm-red">✏️ Editar orden</h3><form id="formEditarTarea"><input type="hidden" id="editTareaId"><input type="text" id="editTitulo" placeholder="Título" required class="w-full bg-zinc-800 border border-zinc-700 p-3 rounded mb-3"><textarea id="editDescripcion" placeholder="Descripción" rows="3" class="w-full bg-zinc-800 border border-zinc-700 p-3 rounded mb-3"></textarea><div class="grid grid-cols-2 gap-3 mb-4"><select id="editClienteTarea" class="bg-zinc-800 border border-zinc-700 p-3 rounded"><option value="">-- Seleccionar Cliente --</option></select><input type="date" id="editFecha" class="bg-zinc-800 border border-zinc-700 p-3 rounded"></div><input type="number" id="editCostoTarea" placeholder="Costo (USD $)" step="0.01" class="w-full bg-zinc-800 border border-zinc-700 p-3 rounded mb-3"><select id="editEstado" class="w-full bg-zinc-800 border border-zinc-700 p-3 rounded mb-4"><option value="Pendiente">⏳ Pendiente</option><option value="En Proceso">🔧 En Proceso</option><option value="Completado">✅ Completado</option></select><button type="submit" class="w-full bg-bm-red py-3 font-black uppercase rounded hover:bg-red-700">Actualizar</button></form></div></div>
+
+    <div id="modalCita" class="modal p-4"><div class="bg-card-gray w-full max-w-2xl p-8 rounded border-t-4 border-bm-red relative"><button onclick="closeModal('modalCita')" class="absolute top-4 right-4 text-gray-500 hover:text-white text-2xl">&times;</button><h3 class="text-2xl font-black mb-6 italic uppercase text-bm-red">// Solicitar Cita</h3><p class="text-gray-400 text-sm mb-4">Tu solicitud quedará pendiente hasta que el administrador la apruebe.</p><form id="formCita" class="grid grid-cols-1 md:grid-cols-2 gap-4"><div class="md:col-span-2"><input type="date" id="fechaDeseada" required class="w-full bg-zinc-800 border border-zinc-700 p-3 rounded"></div><input type="text" id="placa" placeholder="Placa" required class="bg-zinc-800 p-3 rounded"><input type="text" id="marca" placeholder="Marca" required class="bg-zinc-800 p-3 rounded"><input type="text" id="modelo" placeholder="Modelo" required class="bg-zinc-800 p-3 rounded"><input type="text" id="color" placeholder="Color" required class="bg-zinc-800 p-3 rounded"><input type="text" id="propietario" placeholder="Nombre completo" required class="bg-zinc-800 p-3 rounded md:col-span-2"><input type="text" id="cedula" placeholder="Cédula" required class="bg-zinc-800 p-3 rounded"><input type="tel" id="telefono" placeholder="Teléfono" required class="bg-zinc-800 p-3 rounded"><button type="submit" class="md:col-span-2 bg-bm-red py-4 font-black uppercase rounded hover:bg-red-700">Solicitar Cita</button></form></div></div>
+
+    <div id="modalAdmin" class="modal"><div class="bg-black w-full max-w-sm p-10 rounded border border-zinc-800 text-center"><h3 class="text-xl font-bold mb-8 uppercase italic tracking-widest">Login Administrador</h3><form id="formLogin" class="flex flex-col gap-4"><input type="text" id="adminUser" placeholder="Usuario" required class="bg-zinc-900 border border-zinc-800 p-3 rounded text-center"><input type="password" id="adminPass" placeholder="Contraseña" required class="bg-zinc-900 border border-zinc-800 p-3 rounded text-center"><button type="submit" class="bg-white text-black font-bold py-3 hover:bg-bm-red hover:text-white transition uppercase text-xs">Entrar</button></form><button onclick="closeModal('modalAdmin')" class="mt-6 text-gray-600 text-xs hover:text-gray-300">Cerrar</button></div></div>
+
+    <script>
+        // ==================== CONFIGURACIÓN SUPABASE ====================
+        // REEMPLAZA ESTOS VALORES CON LOS TUYOS DE SUPABASE
+        const SUPABASE_URL = 'https://yygpjjwoabqtqnjussjo.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl5Z3BqandvYWJxdHFuanVzc2pvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1NDczOTMsImV4cCI6MjA5MjEyMzM5M30.c50rqLJ2N2_74sdRgEBuaF2SM-16Mt5FDDVZk2cGpYM';
+        
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
+        // ==================== VARIABLES GLOBALES ====================
+        let categories = [];
+        let tasks = [];
+        let citas = [];
+        
+        // ==================== FUNCIONES CRUD CON SUPABASE ====================
+        
+        // Cargar categorías
+        async function cargarCategorias() {
+            const { data, error } = await supabase.from('categorias').select('*').order('id');
+            if (error) { console.error(error); showAlert('Error cargando categorías', 'error'); return []; }
+            return data;
+        }
+        
+        // Cargar órdenes de trabajo
+        async function cargarOrdenes() {
+            const { data, error } = await supabase.from('ordenes_trabajo').select('*').order('id');
+            if (error) { console.error(error); showAlert('Error cargando órdenes', 'error'); return []; }
+            return data;
+        }
+        
+        // Cargar citas
+        async function cargarCitas() {
+            const { data, error } = await supabase.from('citas').select('*').order('fecha_deseada', { ascending: false });
+            if (error) { console.error(error); showAlert('Error cargando citas', 'error'); return []; }
+            citas = data;
+            renderCitasTable();
+            return data;
+        }
+        
+        // Crear nueva cita
+        async function crearCita(citaData) {
+            const { data, error } = await supabase.from('citas').insert([citaData]).select();
+            if (error) { showAlert('Error al crear cita: ' + error.message, 'error'); return null; }
+            showAlert('✓ Solicitud de cita enviada. Queda pendiente de aprobación.');
+            await cargarCitas();
+            return data[0];
+        }
+        
+        // Actualizar estado de cita
+        async function actualizarEstadoCita(id, nuevoEstado, telefono, propietario, fecha, marca, modelo, placa) {
+            const { error } = await supabase.from('citas').update({ estado: nuevoEstado }).eq('id', id);
+            if (error) { showAlert('Error al actualizar cita', 'error'); return false; }
+            
+            // Enviar WhatsApp
+            const mensaje = nuevoEstado === 'aprobada' 
+                ? `🚗 *BM AUTOMOTRIZ* 🚗\n\n¡Hola ${propietario}! Su cita para el día *${fecha}* ha sido *APROBADA* ✅\n\nVehículo: ${marca} ${modelo} (${placa})\n\n📍 San Cristóbal, Táchira.\n¡Le esperamos!`
+                : `🚗 *BM AUTOMOTRIZ* 🚗\n\nHola ${propietario}, su cita para el día *${fecha}* ha sido *RECHAZADA* ❌\n\nPor favor contáctenos para reprogramar.`;
+            
+            let numero = telefono.replace(/\D/g, '');
+            if (!numero.startsWith('58')) numero = '58' + numero;
+            window.open(`https://wa.me/${numero}?text=${encodeURIComponent(mensaje)}`, '_blank');
+            
+            showAlert(`Cita ${nuevoEstado === 'aprobada' ? 'aprobada' : 'rechazada'}. Notificación enviada.`);
+            await cargarCitas();
+            return true;
+        }
+        
+        // Eliminar cita
+        async function eliminarCitaDB(id) {
+            const { error } = await supabase.from('citas').delete().eq('id', id);
+            if (error) { showAlert('Error al eliminar cita', 'error'); return false; }
+            showAlert('Cita eliminada');
+            await cargarCitas();
+            return true;
+        }
+        
+        // Crear categoría
+        async function crearCategoria(nombre) {
+            const { data, error } = await supabase.from('categorias').insert([{ nombre }]).select();
+            if (error) { showAlert('Error al crear categoría', 'error'); return null; }
+            showAlert(`Categoría "${nombre}" creada`);
+            await cargarCategoriasDB();
+            renderKanban();
+            return data[0];
+        }
+        
+        // Eliminar categoría
+        async function eliminarCategoriaDB(id) {
+            const { error } = await supabase.from('categorias').delete().eq('id', id);
+            if (error) { showAlert('Error al eliminar categoría', 'error'); return false; }
+            showAlert('Categoría eliminada');
+            await cargarCategoriasDB();
+            renderKanban();
+            return true;
+        }
+        
+        // Crear orden de trabajo
+        async function crearOrden(ordenData) {
+            const { data, error } = await supabase.from('ordenes_trabajo').insert([ordenData]).select();
+            if (error) { showAlert('Error al crear orden', 'error'); return null; }
+            showAlert('Orden agregada');
+            await cargarOrdenesDB();
+            renderKanban();
+            return data[0];
+        }
+        
+        // Actualizar orden de trabajo
+        async function actualizarOrden(id, ordenData) {
+            const { error } = await supabase.from('ordenes_trabajo').update(ordenData).eq('id', id);
+            if (error) { showAlert('Error al actualizar orden', 'error'); return false; }
+            showAlert('Orden actualizada');
+            await cargarOrdenesDB();
+            renderKanban();
+            return true;
+        }
+        
+        // Eliminar orden
+        async function eliminarOrdenDB(id) {
+            const { error } = await supabase.from('ordenes_trabajo').delete().eq('id', id);
+            if (error) { showAlert('Error al eliminar orden', 'error'); return false; }
+            showAlert('Orden eliminada');
+            await cargarOrdenesDB();
+            renderKanban();
+            return true;
+        }
+        
+        // Cargar servicios públicos
+        async function cargarServicios() {
+            const { data, error } = await supabase.from('servicios').select('*');
+            if (error) return;
+            const container = document.getElementById('servicios-container');
+            if (container && data.length) {
+                container.innerHTML = data.map(s => `
+                    <div class="bg-card-gray border-t-4 border-bm-red p-10 flex flex-col items-center hover:bg-zinc-800 transition">
+                        <div class="text-5xl text-bm-red mb-6">${s.icono}</div>
+                        <h4 class="font-bold text-xl mb-4 uppercase italic">${s.titulo}</h4>
+                        <p class="text-sm text-gray-400 mb-8">${s.descripcion}</p>
+                        <button onclick="openModal('modalCita')" class="border-2 border-bm-red text-bm-red font-bold py-2 px-6 rounded hover:bg-bm-red hover:text-white uppercase text-xs">Agendar</button>
+                    </div>
+                `).join('');
+            }
+        }
+        
+        // Funciones wrapper
+        async function cargarCategoriasDB() { categories = await cargarCategorias(); }
+        async function cargarOrdenesDB() { tasks = await cargarOrdenes(); }
+        
+        // Renderizar tabla de citas
+        function renderCitasTable() {
+            const tbody = document.getElementById('tablaCitasBody');
+            if (!tbody) return;
+            if (citas.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center text-gray-500 py-8">No hay citas registradas</td></tr>';
+                document.getElementById('totalCitasCount').innerText = '0';
+                return;
+            }
+            document.getElementById('totalCitasCount').innerText = citas.length;
+            tbody.innerHTML = citas.map(c => {
+                let statusClass = c.estado === 'pendiente' ? 'status-pendiente' : (c.estado === 'aprobada' ? 'status-aprobada' : 'status-rechazada');
+                let statusText = c.estado === 'pendiente' ? '⏳ Pendiente' : (c.estado === 'aprobada' ? '✅ Aprobada' : '❌ Rechazada');
+                return `<tr>
+                    <td class="text-xs text-gray-400">${c.id}</td>
+                    <td class="font-bold">${c.fecha_deseada}</td>
+                    <td class="uppercase">${c.marca} ${c.modelo} (${c.placa})</td>
+                    <td>${c.propietario}</td>
+                    <td class="text-green-400">${c.telefono}</td>
+                    <td><span class="${statusClass}">${statusText}</span></td>
+                    <td>${c.estado === 'pendiente' ? 
+                        `<button onclick="aprobarCita(${c.id})" class="btn-aprobar text-white px-3 py-1 rounded text-xs font-bold mr-1">✓ Aprobar</button>
+                         <button onclick="rechazarCita(${c.id})" class="btn-rechazar text-white px-3 py-1 rounded text-xs font-bold">✗ Rechazar</button>` : 
+                        `<button onclick="eliminarCita(${c.id})" class="text-red-500 hover:text-red-400 text-sm">🗑️ Eliminar</button>`}
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+        
+        // Funciones globales para botones
+        window.aprobarCita = async (id) => {
+            const cita = citas.find(c => c.id === id);
+            if (cita && cita.estado === 'pendiente') {
+                await actualizarEstadoCita(id, 'aprobada', cita.telefono, cita.propietario, cita.fecha_deseada, cita.marca, cita.modelo, cita.placa);
+            }
+        };
+        
+        window.rechazarCita = async (id) => {
+            const cita = citas.find(c => c.id === id);
+            if (cita && cita.estado === 'pendiente') {
+                await actualizarEstadoCita(id, 'rechazada', cita.telefono, cita.propietario, cita.fecha_deseada, cita.marca, cita.modelo, cita.placa);
+            }
+        };
+        
+        window.eliminarCita = async (id) => {
+            if (confirm('¿Eliminar esta cita del registro?')) {
+                await eliminarCitaDB(id);
+            }
+        };
+        
+        // Render Kanban
+        function renderKanban() {
+            const container = document.getElementById('kanbanContainer');
+            if (!container) return;
+            container.innerHTML = '';
+            const clientesMap = new Map(citas.filter(c => c.estado === 'aprobada').map(c => [c.id, c]));
+            
+            categories.forEach(cat => {
+                const tareasCat = tasks.filter(t => t.categoria_id === cat.id);
+                const columna = document.createElement('div');
+                columna.className = 'kanban-column min-w-[320px] w-80 flex flex-col bg-zinc-900/50 rounded-xl p-3';
+                columna.innerHTML = `
+                    <div class="flex justify-between items-center mb-3 pb-2 border-b border-gray-700">
+                        <h3 class="font-black uppercase text-sm tracking-wider text-bm-red">${escapeHtml(cat.nombre)}</h3>
+                        <div class="flex gap-2">
+                            <button onclick="agregarTareaACategoria(${cat.id})" class="text-xs bg-zinc-800 hover:bg-bm-red px-2 py-1 rounded">+ Nota</button>
+                            <button onclick="eliminarCategoria(${cat.id})" class="text-xs text-gray-400 hover:text-red-500">🗑️</button>
+                        </div>
+                    </div>
+                    <div class="flex-1 space-y-3 max-h-[55vh] overflow-y-auto pr-1">
+                        ${tareasCat.length === 0 ? '<div class="text-center text-gray-500 text-xs py-6 italic">Sin órdenes</div>' : 
+                            tareasCat.map(t => {
+                                const cliente = t.cliente_id ? clientesMap.get(t.cliente_id) : null;
+                                return `<div class="task-card p-3 rounded-md shadow cursor-pointer" onclick="abrirEditarTarea(${t.id})">
+                                    <div class="flex justify-between items-start">
+                                        <h4 class="font-bold text-sm uppercase tracking-tight">${escapeHtml(t.titulo)}</h4>
+                                        <span class="category-badge px-2 py-0.5 rounded text-[9px] ${t.estado === 'Completado' ? 'bg-green-900 text-green-300' : t.estado === 'En Proceso' ? 'bg-yellow-900 text-yellow-300' : 'bg-red-900 text-red-300'}">${t.estado}</span>
+                                    </div>
+                                    <p class="text-gray-400 text-xs mt-1">${escapeHtml(t.descripcion || 'Sin descripción')}</p>
+                                    ${cliente ? `<div class="cliente-badge mt-1">👤 ${escapeHtml(cliente.propietario)} | ${escapeHtml(cliente.marca)} ${escapeHtml(cliente.modelo)}</div>` : ''}
+                                    ${t.costo ? `<div class="costo-badge mt-1">💰 $${parseFloat(t.costo).toFixed(2)}</div>` : ''}
+                                    <div class="flex justify-between items-center mt-2 text-[10px] text-gray-500">
+                                        <span>📅 ${t.fecha || 'Sin fecha'}</span>
+                                        <button onclick="event.stopPropagation(); eliminarTarea(${t.id})" class="text-red-500 hover:text-red-300">❌</button>
+                                    </div>
+                                </div>`;
+                            }).join('')
+                        }
+                    </div>
+                `;
+                container.appendChild(columna);
+            });
+        }
+        
+        function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;'); }
+        
+        function showAlert(msg, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            if (type === 'error') toast.style.borderLeftColor = '#ff3333';
+            toast.innerHTML = `<div style="width:10px;height:10px;border-radius:50%;background:${type === 'error' ? '#ff3333' : '#e60000'}"></div><span>${msg}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.add('fade-out');
+                toast.addEventListener('animationend', () => toast.remove());
+            }, 3500);
+        }
+        
+        function openModal(id) { document.getElementById(id).classList.add('active'); }
+        function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+        
+        function cerrarSesion() {
+            document.getElementById('publicSite').style.display = 'block';
+            document.getElementById('adminPanel').style.display = 'none';
+            showAlert('Sesión cerrada correctamente');
+        }
+        
+        // Formularios
+        document.getElementById('formLogin')?.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const user = document.getElementById('adminUser').value.trim();
+            const pass = document.getElementById('adminPass').value;
+            if (user === 'admin' && pass === 'bm2026') {
+                document.getElementById('publicSite').style.display = 'none';
+                document.getElementById('adminPanel').style.display = 'block';
+                closeModal('modalAdmin');
+                cargarCategoriasDB().then(() => cargarOrdenesDB().then(() => cargarCitas().then(() => renderKanban())));
+                showAlert('Bienvenido al panel administrativo');
+            } else {
+                showAlert('Credenciales incorrectas', 'error');
+            }
+        });
+        
+        document.getElementById('formCita')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const nuevaCita = {
+                fecha_deseada: document.getElementById('fechaDeseada').value,
+                placa: document.getElementById('placa').value.trim().toUpperCase(),
+                marca: document.getElementById('marca').value.trim(),
+                modelo: document.getElementById('modelo').value.trim(),
+                color: document.getElementById('color').value.trim(),
+                propietario: document.getElementById('propietario').value.trim(),
+                cedula: document.getElementById('cedula').value.trim(),
+                telefono: document.getElementById('telefono').value.trim(),
+                estado: 'pendiente'
+            };
+            await crearCita(nuevaCita);
+            closeModal('modalCita');
+            document.getElementById('formCita').reset();
+        });
+        
+        document.getElementById('formCategoria')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const nombre = document.getElementById('nombreCategoria').value.trim();
+            if (!nombre) return showAlert('Ingrese nombre', 'error');
+            await crearCategoria(nombre);
+            closeModal('modalCategoria');
+            document.getElementById('nombreCategoria').value = '';
+        });
+        
+        window.eliminarCategoria = async (id) => {
+            if (confirm('¿Eliminar categoría y todas sus órdenes?')) {
+                await eliminarCategoriaDB(id);
+            }
+        };
+        
+        function cargarSelectoresClientes() {
+            const clientes = citas.filter(c => c.estado === 'aprobada');
+            const options = '<option value="">-- Seleccionar Cliente --</option>' + 
+                clientes.map(c => `<option value="${c.id}">${c.propietario} - ${c.marca} ${c.modelo} (${c.placa}) - ${c.fecha_deseada}</option>`).join('');
+            const selectNuevo = document.getElementById('clienteTarea');
+            const selectEdit = document.getElementById('editClienteTarea');
+            if (selectNuevo) selectNuevo.innerHTML = options;
+            if (selectEdit) selectEdit.innerHTML = options;
+        }
+        
+        window.agregarTareaACategoria = (categoriaId) => {
+            cargarSelectoresClientes();
+            document.getElementById('tareaCategoriaId').value = categoriaId;
+            document.getElementById('tituloTarea').value = '';
+            document.getElementById('descripcionTarea').value = '';
+            document.getElementById('fechaTarea').value = new Date().toISOString().slice(0, 10);
+            document.getElementById('costoTarea').value = '';
+            document.getElementById('estadoTarea').value = 'Pendiente';
+            openModal('modalTarea');
+        };
+        
+        document.getElementById('formTarea')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const categoriaId = parseInt(document.getElementById('tareaCategoriaId').value);
+            const titulo = document.getElementById('tituloTarea').value.trim();
+            if (!titulo) return showAlert('Título requerido', 'error');
+            const clienteId = document.getElementById('clienteTarea').value;
+            const costo = document.getElementById('costoTarea').value;
+            await crearOrden({
+                categoria_id: categoriaId,
+                titulo: titulo,
+                descripcion: document.getElementById('descripcionTarea').value,
+                fecha: document.getElementById('fechaTarea').value,
+                estado: document.getElementById('estadoTarea').value,
+                cliente_id: clienteId ? parseInt(clienteId) : null,
+                costo: costo ? parseFloat(costo) : null
+            });
+            closeModal('modalTarea');
+        });
+        
+        window.abrirEditarTarea = (id) => {
+            const tarea = tasks.find(t => t.id === id);
+            if (!tarea) return;
+            cargarSelectoresClientes();
+            document.getElementById('editTareaId').value = tarea.id;
+            document.getElementById('editTitulo').value = tarea.titulo;
+            document.getElementById('editDescripcion').value = tarea.descripcion || '';
+            document.getElementById('editFecha').value = tarea.fecha || '';
+            document.getElementById('editCostoTarea').value = tarea.costo || '';
+            document.getElementById('editEstado').value = tarea.estado;
+            if (tarea.cliente_id) document.getElementById('editClienteTarea').value = tarea.cliente_id;
+            openModal('modalEditarTarea');
+        };
+        
+        document.getElementById('formEditarTarea')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = parseInt(document.getElementById('editTareaId').value);
+            const clienteId = document.getElementById('editClienteTarea').value;
+            const costo = document.getElementById('editCostoTarea').value;
+            await actualizarOrden(id, {
+                titulo: document.getElementById('editTitulo').value,
+                descripcion: document.getElementById('editDescripcion').value,
+                fecha: document.getElementById('editFecha').value,
+                estado: document.getElementById('editEstado').value,
+                cliente_id: clienteId ? parseInt(clienteId) : null,
+                costo: costo ? parseFloat(costo) : null
+            });
+            closeModal('modalEditarTarea');
+        });
+        
+        window.eliminarTarea = async (id) => {
+            if (confirm('¿Eliminar esta orden?')) {
+                await eliminarOrdenDB(id);
+            }
+        };
+        
+        window.abrirModalNuevaTarea = () => {
+            if (categories.length === 0) { showAlert('Cree una categoría primero', 'error'); return; }
+            cargarSelectoresClientes();
+            document.getElementById('tareaCategoriaId').value = categories[0].id;
+            document.getElementById('tituloTarea').value = '';
+            document.getElementById('descripcionTarea').value = '';
+            document.getElementById('fechaTarea').value = new Date().toISOString().slice(0, 10);
+            document.getElementById('costoTarea').value = '';
+            document.getElementById('estadoTarea').value = 'Pendiente';
+            openModal('modalTarea');
+        };
+        
+        window.exportarCompletadosPDF = () => {
+            const completadas = tasks.filter(t => t.estado === 'Completado');
+            if (completadas.length === 0) { showAlert('No hay órdenes completadas', 'error'); return; }
+            const totalGanancias = completadas.reduce((sum, t) => sum + (t.costo || 0), 0);
+            const reportDiv = document.createElement('div');
+            reportDiv.className = 'pdf-report';
+            const getCatName = (catId) => { const cat = categories.find(c => c.id === catId); return cat ? cat.nombre : 'Sin categoría'; };
+            reportDiv.innerHTML = `
+                <h1>BM AUTOMOTRIZ</h1>
+                <h2>Reporte de Órdenes Completadas</h2>
+                <p>Fecha: ${new Date().toLocaleString()}</p>
+                <table>
+                    <thead><tr><th>#</th><th>Categoría</th><th>Título</th><th>Descripción</th><th>Fecha</th><th>Costo (USD)</th></tr></thead>
+                    <tbody>
+                        ${completadas.map((t, idx) => `<tr><td>${idx + 1}</td><td>${escapeHtml(getCatName(t.categoria_id))}</td><td>${escapeHtml(t.titulo)}</td><td>${escapeHtml(t.descripcion || '—')}</td><td>${t.fecha || '—'}</td><td class="text-right">$${(t.costo || 0).toFixed(2)}</td></tr>`).join('')}
+                        <tr class="total-row"><td colspan="5" class="text-right font-bold">TOTAL GANANCIAS:</td><td class="text-right font-bold">$${totalGanancias.toFixed(2)}</td></tr>
+                    </tbody>
+                </table>
+                <div class="footer">Total órdenes: ${completadas.length} | Ganancia total: $${totalGanancias.toFixed(2)} | BM Automotriz</div>
+            `;
+            document.body.appendChild(reportDiv);
+            html2pdf().set({ margin: 0.5, filename: `BM_Completadas_${Date.now()}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'in', format: 'a4', orientation: 'landscape' } }).from(reportDiv).save().then(() => { document.body.removeChild(reportDiv); showAlert('PDF generado'); });
+        };
+        
+        // Inicialización
+        cargarServicios();
+        
+        window.openModal = openModal;
+        window.closeModal = closeModal;
+        window.cerrarSesion = cerrarSesion;
+        if (window.location.hash) history.replaceState(null, '', window.location.pathname);
+    </script>
+</body>
+</html>
