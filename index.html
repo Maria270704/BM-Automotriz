@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BM Automotriz | Gestión de Taller</title>
+    <link rel="icon" type="image/png" href="imagenes/logo (2).png">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -64,10 +65,13 @@
         .scrollbar-thin::-webkit-scrollbar-thumb { background: #e60000; border-radius: 10px; }
         .pdf-report { font-family: 'Helvetica', 'Arial', sans-serif; padding: 30px; background: white; color: #111; }
         .pdf-report h1 { color: #e60000; font-size: 28px; border-bottom: 2px solid #e60000; padding-bottom: 10px; margin-bottom: 20px; text-transform: uppercase; }
+        .pdf-report h2 { font-size: 18px; margin-top: 20px; margin-bottom: 10px; color: #333; }
         .pdf-report table { width: 100%; border-collapse: collapse; margin-top: 15px; }
         .pdf-report th, .pdf-report td { border: 1px solid #ddd; padding: 10px; text-align: left; font-size: 12px; }
         .pdf-report th { background-color: #e60000; color: white; text-transform: uppercase; }
         .pdf-report .total-row { background-color: #f0f0f0; font-weight: bold; }
+        .pdf-report .footer { margin-top: 30px; font-size: 10px; text-align: center; color: #666; border-top: 1px solid #ccc; padding-top: 15px; }
+        .text-right { text-align: right; }
         .citas-table-container { background: #0a0a0a; border-radius: 12px; border: 1px solid #2a2a2a; overflow-x: auto; }
         .citas-table { width: 100%; min-width: 1000px; }
         .citas-table th { background: #1a1a1a; color: #e60000; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; padding: 14px 12px; }
@@ -81,13 +85,85 @@
         .btn-rechazar:hover { background: #7f1d1d; }
         .cliente-badge { background: #1e3a5f; color: #93c5fd; padding: 2px 8px; border-radius: 12px; font-size: 9px; display: inline-block; margin-top: 4px; }
         .costo-badge { background: #2d3748; color: #fbbf24; padding: 2px 8px; border-radius: 12px; font-size: 9px; display: inline-block; margin-top: 4px; margin-left: 4px; }
+        
+        .carousel-btn {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(230, 0, 0, 0.8);
+            color: white;
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 20px;
+            font-weight: bold;
+            z-index: 20;
+            transition: all 0.3s;
+        }
+        .carousel-btn:hover { background: #e60000; transform: translateY(-50%) scale(1.1); }
+        .carousel-btn-prev { left: 10px; }
+        .carousel-btn-next { right: 10px; }
+        .carousel-dot { width: 10px; height: 10px; border-radius: 50%; background: #4a4a4a; cursor: pointer; transition: all 0.3s; }
+        .carousel-dot.active { background: #e60000; width: 20px; border-radius: 10px; }
+
+        /* Modal de confirmación personalizado */
+        .confirm-modal {
+            background: #1a1a1a;
+            border-top: 4px solid #e60000;
+            border-radius: 8px;
+            max-width: 400px;
+            width: 90%;
+            padding: 24px;
+            text-align: center;
+        }
+        .confirm-modal p {
+            color: white;
+            margin-bottom: 24px;
+            font-size: 16px;
+        }
+        .confirm-modal .confirm-btn {
+            background: #e60000;
+            color: white;
+            padding: 10px 24px;
+            border-radius: 4px;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            margin: 0 8px;
+            transition: all 0.2s;
+        }
+        .confirm-modal .confirm-btn:hover { background: #cc0000; transform: scale(1.02); }
+        .confirm-modal .cancel-btn {
+            background: #333333;
+            color: white;
+            padding: 10px 24px;
+            border-radius: 4px;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            margin: 0 8px;
+            transition: all 0.2s;
+        }
+        .confirm-modal .cancel-btn:hover { background: #444444; transform: scale(1.02); }
     </style>
 </head>
 <body class="bg-dark-gray text-white font-sans antialiased">
 
     <div id="toast-container"></div>
 
-    <!-- Página pública -->
+    <!-- Modal de confirmación personalizado -->
+    <div id="customConfirmModal" class="modal">
+        <div class="confirm-modal">
+            <p id="confirmMessage">¿Estás seguro?</p>
+            <div>
+                <button id="confirmYesBtn" class="confirm-btn">✓ Sí</button>
+                <button id="confirmNoBtn" class="cancel-btn">✗ No</button>
+            </div>
+        </div>
+    </div>
+
     <div id="publicSite">
         <header class="fixed top-0 w-full z-50 flex justify-between items-center p-6 bg-black/95 backdrop-blur-sm border-b border-gray-800">
             <div class="flex items-center gap-2">
@@ -117,8 +193,64 @@
         </section>
 
         <section id="servicios" class="py-24 px-10 max-w-6xl mx-auto text-center scroll-mt-24">
-            <h3 class="text-3xl font-bold mb-12 tracking-widest uppercase italic"><span class="text-bm-red">//</span> Servicios</h3>
-            <div id="servicios-container" class="grid grid-cols-1 md:grid-cols-3 gap-8"></div>
+            <h3 class="text-3xl font-bold mb-12 tracking-widest uppercase italic"><span class="text-bm-red">//</span> SERVICIOS ESPECIALIZADOS</h3>
+            <div class="relative max-w-4xl mx-auto">
+                <button class="carousel-btn carousel-btn-prev" onclick="cambiarSlide(-1)">‹</button>
+                <button class="carousel-btn carousel-btn-next" onclick="cambiarSlide(1)">›</button>
+                <div id="serviciosCarousel" class="overflow-hidden rounded-2xl">
+                    <div id="carouselTrack" class="flex transition-transform duration-500 ease-in-out">
+                        <div class="min-w-full bg-gradient-to-br from-zinc-900 to-zinc-800 p-8 rounded-2xl">
+                            <div class="flex flex-col md:flex-row items-center gap-8">
+                                <div class="md:w-1/2"><img src="https://repsaautocentro.com/wp-content/uploads/2025/03/frenos.jpg" alt="Mantenimiento de Frenos" class="rounded-xl shadow-2xl w-full h-64 object-cover"></div>
+                                <div class="md:w-1/2 text-left"><div class="text-5xl mb-4">🛞</div><h4 class="text-2xl font-bold uppercase italic text-bm-red mb-2">Mantenimiento de Frenos</h4><p class="text-gray-300 mb-4">Revisión y reparación completa del sistema de frenos.</p><button onclick="window.openModal('modalCita')" class="bg-bm-red hover:bg-red-700 text-white font-bold py-2 px-6 rounded transition text-sm uppercase">Agendar Cita</button></div>
+                            </div>
+                        </div>
+                        <div class="min-w-full bg-gradient-to-br from-zinc-900 to-zinc-800 p-8 rounded-2xl">
+                            <div class="flex flex-col md:flex-row items-center gap-8">
+                                <div class="md:w-1/2"><img src="https://www.freewayseguros.com/blog/wp-content/uploads/sites/2/2025/07/Reparacion-de-aire-acondicionado-1.jpg" alt="Aire Acondicionado" class="rounded-xl shadow-2xl w-full h-64 object-cover"></div>
+                                <div class="md:w-1/2 text-left"><div class="text-5xl mb-4">❄️</div><h4 class="text-2xl font-bold uppercase italic text-bm-red mb-2">Aire Acondicionado</h4><p class="text-gray-300 mb-4">Carga de gas, limpieza de ductos, reparación de compresores.</p><button onclick="window.openModal('modalCita')" class="bg-bm-red hover:bg-red-700 text-white font-bold py-2 px-6 rounded transition text-sm uppercase">Agendar Cita</button></div>
+                            </div>
+                        </div>
+                        <div class="min-w-full bg-gradient-to-br from-zinc-900 to-zinc-800 p-8 rounded-2xl">
+                            <div class="flex flex-col md:flex-row items-center gap-8">
+                                <div class="md:w-1/2"><img src="https://motorcheck.es/wp-content/uploads/Motores-de-coche-reconstruidos.jpg" alt="Reconstrucción de Motores" class="rounded-xl shadow-2xl w-full h-64 object-cover"></div>
+                                <div class="md:w-1/2 text-left"><div class="text-5xl mb-4">🔧</div><h4 class="text-2xl font-bold uppercase italic text-bm-red mb-2">Reconstrucción de Motores</h4><p class="text-gray-300 mb-4">Rectificación de culatas, cambio de anillos, metales, juntas.</p><button onclick="window.openModal('modalCita')" class="bg-bm-red hover:bg-red-700 text-white font-bold py-2 px-6 rounded transition text-sm uppercase">Agendar Cita</button></div>
+                            </div>
+                        </div>
+                        <div class="min-w-full bg-gradient-to-br from-zinc-900 to-zinc-800 p-8 rounded-2xl">
+                            <div class="flex flex-col md:flex-row items-center gap-8">
+                                <div class="md:w-1/2"><img src="https://img.zsmotor.cl/wp-content/uploads/2025/12/Screenshot_2-8-1024x495.jpg" alt="Tren Delantero" class="rounded-xl shadow-2xl w-full h-64 object-cover"></div>
+                                <div class="md:w-1/2 text-left"><div class="text-5xl mb-4">⚙️</div><h4 class="text-2xl font-bold uppercase italic text-bm-red mb-2">Tren Delantero y Trasero</h4><p class="text-gray-300 mb-4">Amortiguadores, rótulas, bieletas, silentblocks.</p><button onclick="window.openModal('modalCita')" class="bg-bm-red hover:bg-red-700 text-white font-bold py-2 px-6 rounded transition text-sm uppercase">Agendar Cita</button></div>
+                            </div>
+                        </div>
+                        <div class="min-w-full bg-gradient-to-br from-zinc-900 to-zinc-800 p-8 rounded-2xl">
+                            <div class="flex flex-col md:flex-row items-center gap-8">
+                                <div class="md:w-1/2"><img src="https://www.rodi.es/blog/wp-content/uploads/2025/03/sistema-suspension-coche.jpg" alt="Suspensión" class="rounded-xl shadow-2xl w-full h-64 object-cover"></div>
+                                <div class="md:w-1/2 text-left"><div class="text-5xl mb-4">🔄</div><h4 class="text-2xl font-bold uppercase italic text-bm-red mb-2">Suspensión</h4><p class="text-gray-300 mb-4">Revisión y cambio de amortiguadores, espirales.</p><button onclick="window.openModal('modalCita')" class="bg-bm-red hover:bg-red-700 text-white font-bold py-2 px-6 rounded transition text-sm uppercase">Agendar Cita</button></div>
+                            </div>
+                        </div>
+                        <div class="min-w-full bg-gradient-to-br from-zinc-900 to-zinc-800 p-8 rounded-2xl">
+                            <div class="flex flex-col md:flex-row items-center gap-8">
+                                <div class="md:w-1/2"><img src="https://www.mitsubishi-motors.com.pe/blog/wp-content/uploads/2023/08/destacado-sistema-electrico-vehiculo-mitsubishi.jpg" alt="Electricidad General" class="rounded-xl shadow-2xl w-full h-64 object-cover"></div>
+                                <div class="md:w-1/2 text-left"><div class="text-5xl mb-4">⚡</div><h4 class="text-2xl font-bold uppercase italic text-bm-red mb-2">Electricidad General</h4><p class="text-gray-300 mb-4">Sistema de carga, arranque, luces, sensores.</p><button onclick="window.openModal('modalCita')" class="bg-bm-red hover:bg-red-700 text-white font-bold py-2 px-6 rounded transition text-sm uppercase">Agendar Cita</button></div>
+                            </div>
+                        </div>
+                        <div class="min-w-full bg-gradient-to-br from-zinc-900 to-zinc-800 p-8 rounded-2xl">
+                            <div class="flex flex-col md:flex-row items-center gap-8">
+                                <div class="md:w-1/2"><img src="https://static.wixstatic.com/media/a3011b_b252688759bb445884678654020d35f0~mv2.jpg" alt="Electrónica Automotriz" class="rounded-xl shadow-2xl w-full h-64 object-cover"></div>
+                                <div class="md:w-1/2 text-left"><div class="text-5xl mb-4">💻</div><h4 class="text-2xl font-bold uppercase italic text-bm-red mb-2">Electrónica Automotriz</h4><p class="text-gray-300 mb-4">Diagnóstico de centralitas, reprogramación de ECUs.</p><button onclick="window.openModal('modalCita')" class="bg-bm-red hover:bg-red-700 text-white font-bold py-2 px-6 rounded transition text-sm uppercase">Agendar Cita</button></div>
+                            </div>
+                        </div>
+                        <div class="min-w-full bg-gradient-to-br from-zinc-900 to-zinc-800 p-8 rounded-2xl">
+                            <div class="flex flex-col md:flex-row items-center gap-8">
+                                <div class="md:w-1/2"><img src="https://thinkcarmexico.com/wp-content/uploads/2023/05/diagnostico-automotriz-1.jpg" alt="Diagnóstico con Escáner" class="rounded-xl shadow-2xl w-full h-64 object-cover"></div>
+                                <div class="md:w-1/2 text-left"><div class="text-5xl mb-4">📊</div><h4 class="text-2xl font-bold uppercase italic text-bm-red mb-2">Diagnóstico con Escáner</h4><p class="text-gray-300 mb-4">Escaneo computarizado, lectura de códigos de falla.</p><button onclick="window.openModal('modalCita')" class="bg-bm-red hover:bg-red-700 text-white font-bold py-2 px-6 rounded transition text-sm uppercase">Agendar Cita</button></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="carouselDots" class="flex justify-center gap-2 mt-6"></div>
+            </div>
         </section>
 
         <section id="nosotros" class="py-32 px-10 bg-black text-center border-t border-gray-800 scroll-mt-24">
@@ -135,13 +267,46 @@
 
         <section id="contacto" class="py-20 bg-card-gray border-y-2 border-bm-red flex flex-col items-center text-center scroll-mt-24">
             <h3 class="text-4xl font-black uppercase italic mb-8">¿Necesitas ayuda?</h3>
+            <p class="text-gray-300 mb-6">Chatea con nosotros y resuelve tus dudas al instante.</p>
             <a href="https://wa.me/584147085371" target="_blank" class="bg-green-600 hover:bg-green-700 text-white font-black py-5 px-12 rounded-full shadow-2xl transition transform hover:scale-105 inline-block text-xl tracking-widest">WHATSAPP DIRECTO</a>
         </section>
 
-        <footer class="bg-black border-t-4 border-bm-red p-12 text-center text-gray-500 text-sm italic">&copy; 2026 BM Automotriz - San Cristóbal, Táchira.</footer>
+        <footer class="bg-black border-t-4 border-bm-red py-12 px-6">
+            <div class="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-8 text-left">
+                <div>
+                    <h4 class="text-bm-red font-bold uppercase mb-3 text-base tracking-wider">BM AUTOMOTRIZ</h4>
+                    <p class="text-gray-400 text-xs leading-relaxed">Especialistas en mantenimiento preventivo y correctivo de alta gama en Táchira.</p>
+                </div>
+                <div>
+                    <h4 class="text-bm-red font-bold uppercase mb-3 text-base tracking-wider">NAVEGACIÓN</h4>
+                    <ul class="text-gray-400 text-xs space-y-2">
+                        <li><a href="#home" class="hover:text-bm-red transition">Home</a></li>
+                        <li><a href="#servicios" class="hover:text-bm-red transition">Servicios</a></li>
+                        <li><a href="#nosotros" class="hover:text-bm-red transition">Nosotros</a></li>
+                        <li><a href="#contacto" class="hover:text-bm-red transition">Contacto</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="text-bm-red font-bold uppercase mb-3 text-base tracking-wider">SÍGUENOS</h4>
+                    <a href="https://www.instagram.com/bm.automotriz?igsh=MTJ4MWdnOGhoOHNvOQ==" target="_blank" class="inline-flex items-center gap-2 text-gray-400 hover:text-bm-red transition text-sm">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/>
+                        </svg>
+                        <span>@bm.automotriz</span>
+                    </a>
+                </div>
+                <div>
+                    <h4 class="text-bm-red font-bold uppercase mb-3 text-base tracking-wider">CONTACTO</h4>
+                    <p class="text-gray-400 text-xs">San Cristóbal, Táchira.</p>
+                    <p class="text-gray-400 text-xs mt-1">+58414-7085371</p>
+                </div>
+            </div>
+            <div class="text-center text-gray-600 text-xs mt-8 pt-4 border-t border-gray-800">
+                &copy; 2026 BM Automotriz - San Cristóbal, Táchira. Todos los derechos reservados.
+            </div>
+        </footer>
     </div>
 
-    <!-- PANEL ADMIN -->
     <div id="adminPanel" class="min-h-screen bg-dark-gray p-6">
         <div class="flex justify-between items-center mb-6 border-b border-bm-red pb-4 flex-wrap gap-4">
             <div><h2 class="text-3xl font-black italic uppercase text-bm-red">🔧 Panel de Mantenimientos</h2></div>
@@ -151,31 +316,60 @@
                 <button onclick="window.cerrarSesion()" class="bg-bm-red hover:bg-red-700 px-6 py-2 rounded text-sm font-bold uppercase">Cerrar Sesión</button>
             </div>
         </div>
-
         <div class="mb-8">
             <h3 class="text-xl font-bold uppercase italic text-bm-red mb-4">📋 GESTIÓN DE CITAS <span id="totalCitasCount" class="text-xs bg-zinc-800 px-3 py-1 rounded-full ml-2">0</span></h3>
             <div class="citas-table-container">
                 <table class="citas-table"><thead><tr><th>ID</th><th>Fecha</th><th>Vehículo</th><th>Propietario</th><th>Teléfono</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="tablaCitasBody"><tr><td colspan="7" class="text-center py-8">Cargando...</td></tr></tbody></table>
             </div>
         </div>
-
         <div><h3 class="text-xl font-bold uppercase italic text-bm-red mb-4">🔧 ÓRDENES DE TRABAJO</h3><div id="kanbanContainer" class="flex gap-6 overflow-x-auto pb-6 scrollbar-thin" style="min-height: 60vh;"></div></div>
-
         <button onclick="window.abrirModalNuevaTarea()" class="fixed bottom-8 right-8 bg-bm-red hover:bg-red-700 w-14 h-14 rounded-full shadow-2xl flex items-center justify-center text-2xl font-black transition transform hover:scale-105 z-30">+</button>
     </div>
 
-    <!-- MODALES -->
     <div id="modalCategoria" class="modal"><div class="bg-card-gray w-full max-w-md p-8 rounded border-t-4 border-bm-red relative"><button onclick="window.closeModal('modalCategoria')" class="absolute top-4 right-4 text-gray-500 hover:text-white text-2xl">&times;</button><h3 class="text-xl font-bold mb-6 uppercase italic text-bm-red">➕ Nueva categoría</h3><form id="formCategoria"><input type="text" id="nombreCategoria" placeholder="Nombre" required class="w-full bg-zinc-800 border border-zinc-700 p-3 rounded mb-4"><button type="submit" class="w-full bg-bm-red py-3 font-black uppercase rounded hover:bg-red-700">Crear</button></form></div></div>
 
     <div id="modalTarea" class="modal"><div class="bg-card-gray w-full max-w-lg p-8 rounded border-t-4 border-bm-red relative"><button onclick="window.closeModal('modalTarea')" class="absolute top-4 right-4 text-gray-500 hover:text-white text-2xl">&times;</button><h3 class="text-xl font-bold mb-6 uppercase italic text-bm-red">📝 Nueva orden</h3><form id="formTarea"><input type="hidden" id="tareaCategoriaId"><input type="text" id="tituloTarea" placeholder="Título" required class="w-full bg-zinc-800 border border-zinc-700 p-3 rounded mb-3"><textarea id="descripcionTarea" placeholder="Descripción" rows="3" class="w-full bg-zinc-800 border border-zinc-700 p-3 rounded mb-3"></textarea><div class="grid grid-cols-2 gap-3 mb-4"><select id="clienteTarea" class="bg-zinc-800 border border-zinc-700 p-3 rounded"><option value="">-- Seleccionar Cliente --</option></select><input type="date" id="fechaTarea" class="bg-zinc-800 border border-zinc-700 p-3 rounded"></div><input type="number" id="costoTarea" placeholder="Costo (USD $)" step="0.01" class="w-full bg-zinc-800 border border-zinc-700 p-3 rounded mb-3"><select id="estadoTarea" class="w-full bg-zinc-800 border border-zinc-700 p-3 rounded mb-4"><option value="Pendiente">⏳ Pendiente</option><option value="En Proceso">🔧 En Proceso</option><option value="Completado">✅ Completado</option></select><button type="submit" class="w-full bg-bm-red py-3 font-black uppercase rounded hover:bg-red-700">Guardar</button></form></div></div>
 
     <div id="modalEditarTarea" class="modal"><div class="bg-card-gray w-full max-w-lg p-8 rounded border-t-4 border-bm-red relative"><button onclick="window.closeModal('modalEditarTarea')" class="absolute top-4 right-4 text-gray-500 hover:text-white text-2xl">&times;</button><h3 class="text-xl font-bold mb-6 uppercase italic text-bm-red">✏️ Editar orden</h3><form id="formEditarTarea"><input type="hidden" id="editTareaId"><input type="text" id="editTitulo" placeholder="Título" required class="w-full bg-zinc-800 border border-zinc-700 p-3 rounded mb-3"><textarea id="editDescripcion" placeholder="Descripción" rows="3" class="w-full bg-zinc-800 border border-zinc-700 p-3 rounded mb-3"></textarea><div class="grid grid-cols-2 gap-3 mb-4"><select id="editClienteTarea" class="bg-zinc-800 border border-zinc-700 p-3 rounded"><option value="">-- Seleccionar Cliente --</option></select><input type="date" id="editFecha" class="bg-zinc-800 border border-zinc-700 p-3 rounded"></div><input type="number" id="editCostoTarea" placeholder="Costo (USD $)" step="0.01" class="w-full bg-zinc-800 border border-zinc-700 p-3 rounded mb-3"><select id="editEstado" class="w-full bg-zinc-800 border border-zinc-700 p-3 rounded mb-4"><option value="Pendiente">⏳ Pendiente</option><option value="En Proceso">🔧 En Proceso</option><option value="Completado">✅ Completado</option></select><button type="submit" class="w-full bg-bm-red py-3 font-black uppercase rounded hover:bg-red-700">Actualizar</button></form></div></div>
 
-    <div id="modalCita" class="modal p-4"><div class="bg-card-gray w-full max-w-2xl p-8 rounded border-t-4 border-bm-red relative"><button onclick="window.closeModal('modalCita')" class="absolute top-4 right-4 text-gray-500 hover:text-white text-2xl">&times;</button><h3 class="text-2xl font-black mb-6 italic uppercase text-bm-red">// Solicitar Cita</h3><p class="text-gray-400 text-sm mb-4">Tu solicitud quedará pendiente hasta que el administrador la apruebe.</p><form id="formCita" class="grid grid-cols-1 md:grid-cols-2 gap-4"><div class="md:col-span-2"><input type="date" id="fechaDeseada" required class="w-full bg-zinc-800 border border-zinc-700 p-3 rounded"></div><input type="text" id="placa" placeholder="Placa" required class="bg-zinc-800 p-3 rounded"><input type="text" id="marca" placeholder="Marca" required class="bg-zinc-800 p-3 rounded"><input type="text" id="modelo" placeholder="Modelo" required class="bg-zinc-800 p-3 rounded"><input type="text" id="color" placeholder="Color" required class="bg-zinc-800 p-3 rounded"><input type="text" id="propietario" placeholder="Nombre completo" required class="bg-zinc-800 p-3 rounded md:col-span-2"><input type="text" id="cedula" placeholder="Cédula" required class="bg-zinc-800 p-3 rounded"><input type="tel" id="telefono" placeholder="Teléfono" required class="bg-zinc-800 p-3 rounded"><button type="submit" class="md:col-span-2 bg-bm-red py-4 font-black uppercase rounded hover:bg-red-700">Solicitar Cita</button></form></div></div>
+    <div id="modalCita" class="modal p-4"><div class="bg-card-gray w-full max-w-2xl p-8 rounded border-t-4 border-bm-red relative"><button onclick="window.closeModal('modalCita')" class="absolute top-4 right-4 text-gray-500 hover:text-white text-2xl">&times;</button><h3 class="text-2xl font-black mb-6 italic uppercase text-bm-red">// Solicitar Cita</h3><form id="formCita" class="grid grid-cols-1 md:grid-cols-2 gap-4"><div class="md:col-span-2"><input type="date" id="fechaDeseada" required class="w-full bg-zinc-800 border border-zinc-700 p-3 rounded"></div><input type="text" id="placa" placeholder="Placa (Ej: ABC123)" required class="bg-zinc-800 p-3 rounded" onkeypress="return /[a-zA-Z0-9]/i.test(event.key)"><input type="text" id="marca" placeholder="Marca" required class="bg-zinc-800 p-3 rounded" onkeypress="return /[a-zA-ZáéíóúñÑ ]/i.test(event.key)"><input type="text" id="modelo" placeholder="Modelo" required class="bg-zinc-800 p-3 rounded" onkeypress="return /[a-zA-Z0-9áéíóúñÑ ]/i.test(event.key)"><input type="text" id="color" placeholder="Color" required class="bg-zinc-800 p-3 rounded" onkeypress="return /[a-zA-ZáéíóúñÑ ]/i.test(event.key)"><input type="text" id="propietario" placeholder="Propietario" required class="bg-zinc-800 p-3 rounded md:col-span-2" onkeypress="return /[a-zA-ZáéíóúñÑ ]/i.test(event.key)"><input type="text" id="cedula" placeholder="Cédula" required class="bg-zinc-800 p-3 rounded" onkeypress="return /[0-9Vv]/i.test(event.key)"><input type="tel" id="telefono" placeholder="Teléfono" required class="bg-zinc-800 p-3 rounded" onkeypress="return /[0-9]/i.test(event.key)"><button type="submit" class="md:col-span-2 bg-bm-red py-4 font-black uppercase rounded hover:bg-red-700">Solicitar Cita</button></form></div></div>
 
     <div id="modalAdmin" class="modal"><div class="bg-black w-full max-w-sm p-10 rounded border border-zinc-800 text-center"><h3 class="text-xl font-bold mb-8 uppercase italic tracking-widest">Login</h3><form id="formLogin"><input type="text" id="adminUser" placeholder="Usuario" required class="bg-zinc-900 border border-zinc-800 p-3 rounded text-center w-full mb-3"><input type="password" id="adminPass" placeholder="Contraseña" required class="bg-zinc-900 border border-zinc-800 p-3 rounded text-center w-full mb-3"><button type="submit" class="bg-white text-black font-bold py-3 hover:bg-bm-red hover:text-white transition uppercase text-xs w-full">Entrar</button></form><button onclick="window.closeModal('modalAdmin')" class="mt-6 text-gray-600 text-xs hover:text-gray-300">Cerrar</button></div></div>
 
     <script>
+        // ==================== FUNCIÓN CONFIRM PERSONALIZADA ====================
+        function customConfirm(message) {
+            return new Promise((resolve) => {
+                const modal = document.getElementById('customConfirmModal');
+                const messageEl = document.getElementById('confirmMessage');
+                const yesBtn = document.getElementById('confirmYesBtn');
+                const noBtn = document.getElementById('confirmNoBtn');
+                
+                messageEl.textContent = message;
+                modal.classList.add('active');
+                
+                const handleYes = () => {
+                    modal.classList.remove('active');
+                    cleanup();
+                    resolve(true);
+                };
+                
+                const handleNo = () => {
+                    modal.classList.remove('active');
+                    cleanup();
+                    resolve(false);
+                };
+                
+                const cleanup = () => {
+                    yesBtn.removeEventListener('click', handleYes);
+                    noBtn.removeEventListener('click', handleNo);
+                };
+                
+                yesBtn.addEventListener('click', handleYes);
+                noBtn.addEventListener('click', handleNo);
+            });
+        }
+
         // ==================== SUPABASE ====================
         const SUPABASE_URL = 'https://yygpjjwoabqtqnjussjo.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl5Z3BqandvYWJxdHFuanVzc2pvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1NDczOTMsImV4cCI6MjA5MjEyMzM5M30.c50rqLJ2N2_74sdRgEBuaF2SM-16Mt5FDDVZk2cGpYM';
@@ -184,6 +378,26 @@
         let categories = [];
         let tasks = [];
         let citas = [];
+
+        let slideActual = 0;
+        const totalSlides = 8;
+        const carouselTrack = document.getElementById('carouselTrack');
+        const carouselDots = document.getElementById('carouselDots');
+
+        function actualizarCarrusel() {
+            if (carouselTrack) carouselTrack.style.transform = `translateX(-${slideActual * 100}%)`;
+            const dots = document.querySelectorAll('.carousel-dot');
+            dots.forEach((dot, index) => { if (index === slideActual) dot.classList.add('active'); else dot.classList.remove('active'); });
+        }
+
+        window.cambiarSlide = (direccion) => { slideActual = (slideActual + direccion + totalSlides) % totalSlides; actualizarCarrusel(); };
+        function irSlide(index) { slideActual = index; actualizarCarrusel(); }
+
+        if (carouselDots) {
+            for (let i = 0; i < totalSlides; i++) { const dot = document.createElement('div'); dot.className = 'carousel-dot'; dot.onclick = () => irSlide(i); carouselDots.appendChild(dot); }
+            actualizarCarrusel();
+        }
+        setInterval(() => { window.cambiarSlide(1); }, 5000);
 
         function showAlert(msg, type = 'info') {
             const container = document.getElementById('toast-container');
@@ -236,8 +450,7 @@
         window.aprobarCita = async (id) => {
             const cita = citas.find(c => c.id === id);
             if (!cita) return;
-            const { error } = await supabaseClient.from('citas').update({ estado: 'aprobada' }).eq('id', id);
-            if (error) { showAlert('Error', 'error'); return; }
+            await supabaseClient.from('citas').update({ estado: 'aprobada' }).eq('id', id);
             let numero = cita.telefono.replace(/\D/g, '');
             if (!numero.startsWith('58')) numero = '58' + numero;
             window.open(`https://wa.me/${numero}?text=${encodeURIComponent(`🚗 BM AUTOMOTRIZ: Su cita del ${cita.fecha_deseada} ha sido APROBADA ✅`)}`, '_blank');
@@ -246,19 +459,18 @@
         };
 
         window.rechazarCita = async (id) => {
-            const cita = citas.find(c => c.id === id);
-            if (!cita) return;
-            const { error } = await supabaseClient.from('citas').update({ estado: 'rechazada' }).eq('id', id);
-            if (error) { showAlert('Error', 'error'); return; }
+            await supabaseClient.from('citas').update({ estado: 'rechazada' }).eq('id', id);
             showAlert('Cita rechazada');
             cargarCitas();
         };
 
         window.eliminarCita = async (id) => {
-            if (!confirm('¿Eliminar?')) return;
-            await supabaseClient.from('citas').delete().eq('id', id);
-            showAlert('Cita eliminada');
-            cargarCitas();
+            const confirmed = await customConfirm('¿Eliminar esta cita permanentemente?');
+            if (confirmed) {
+                await supabaseClient.from('citas').delete().eq('id', id);
+                showAlert('Cita eliminada');
+                cargarCitas();
+            }
         };
 
         function renderKanban() {
@@ -290,13 +502,15 @@
         });
 
         window.eliminarCategoria = async (id) => {
-            if (!confirm('¿Eliminar categoría?')) return;
-            await supabaseClient.from('categorias').delete().eq('id', id);
-            await supabaseClient.from('ordenes_trabajo').delete().eq('categoria_id', id);
-            showAlert('Categoría eliminada');
-            await cargarCategorias();
-            await cargarOrdenes();
-            renderKanban();
+            const confirmed = await customConfirm('¿Eliminar categoría? Se eliminarán TODAS las órdenes asociadas.');
+            if (confirmed) {
+                await supabaseClient.from('categorias').delete().eq('id', id);
+                await supabaseClient.from('ordenes_trabajo').delete().eq('categoria_id', id);
+                showAlert('Categoría eliminada');
+                await cargarCategorias();
+                await cargarOrdenes();
+                renderKanban();
+            }
         };
 
         window.agregarTareaACategoria = (categoriaId) => {
@@ -363,11 +577,13 @@
         });
 
         window.eliminarTarea = async (id) => {
-            if (!confirm('¿Eliminar orden?')) return;
-            await supabaseClient.from('ordenes_trabajo').delete().eq('id', id);
-            showAlert('Orden eliminada');
-            await cargarOrdenes();
-            renderKanban();
+            const confirmed = await customConfirm('¿Eliminar esta orden de trabajo?');
+            if (confirmed) {
+                await supabaseClient.from('ordenes_trabajo').delete().eq('id', id);
+                showAlert('Orden eliminada');
+                await cargarOrdenes();
+                renderKanban();
+            }
         };
 
         window.abrirModalNuevaTarea = () => {
@@ -387,12 +603,13 @@
         window.exportarCompletadosPDF = () => {
             const completadas = tasks.filter(t => t.estado === 'Completado');
             if (completadas.length === 0) { showAlert('No hay órdenes completadas', 'error'); return; }
-            const total = completadas.reduce((s, t) => s + (t.costo || 0), 0);
-            const div = document.createElement('div');
-            div.className = 'pdf-report';
-            div.innerHTML = `<h1>BM AUTOMOTRIZ</h1><h2>Órdenes Completadas</h2><p>${new Date().toLocaleString()}</p>8万<thead><tr><th>#</th><th>Categoría</th><th>Título</th><th>Costo</th></tr></thead><tbody>${completadas.map((t, i) => `<tr><td>${i+1}</td><td>${categories.find(c=>c.id===t.categoria_id)?.nombre||''}</td><td>${t.titulo}</td><td>$${(t.costo||0).toFixed(2)}</td></tr>`).join('')}<tr class="total-row"><td colspan="3"><b>TOTAL</b></td><td><b>$${total.toFixed(2)}</b></td></tr></tbody></table><div class="footer">BM Automotriz</div>`;
-            document.body.appendChild(div);
-            html2pdf().set({ margin: 0.5, filename: `BM_Completadas_${Date.now()}.pdf` }).from(div).save().then(() => div.remove());
+            const totalGanancias = completadas.reduce((sum, t) => sum + (t.costo || 0), 0);
+            const getCatName = (catId) => { const cat = categories.find(c => c.id === catId); return cat ? cat.nombre : 'Sin categoría'; };
+            const reportDiv = document.createElement('div');
+            reportDiv.className = 'pdf-report';
+            reportDiv.innerHTML = `<h1>BM AUTOMOTRIZ</h1><h2>Reporte de Órdenes Completadas</h2><p>Fecha de generación: ${new Date().toLocaleString()}</p> <table><thead><tr><th>#</th><th>CATEGORÍA</th><th>TÍTULO</th><th>DESCRIPCIÓN</th><th>FECHA</th><th>COSTO (USD $)</th></tr></thead><tbody>${completadas.map((t, idx) => `<tr><td>${idx + 1}</td><td>${escapeHtml(getCatName(t.categoria_id))}</td><td>${escapeHtml(t.titulo)}</td><td>${escapeHtml(t.descripcion || '—')}</td><td>${t.fecha || '—'}<td><td class="text-right">$${(t.costo || 0).toFixed(2)}</td></tr>`).join('')}<tr class="total-row"><td colspan="5" class="text-right"><strong>TOTAL INGRESOS:</strong></td><td class="text-right"><strong>$${totalGanancias.toFixed(2)}</strong></td></tr></tbody></table><div class="footer">Total de órdenes completadas: ${completadas.length} | Ganancia total: $${totalGanancias.toFixed(2)} | BM Automotriz</div>`;
+            document.body.appendChild(reportDiv);
+            html2pdf().set({ margin: 0.5, filename: `BM_Completadas_${Date.now()}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'in', format: 'a4', orientation: 'landscape' } }).from(reportDiv).save().then(() => { document.body.removeChild(reportDiv); showAlert('PDF generado exitosamente'); });
         };
 
         window.cerrarSesion = () => {
@@ -401,20 +618,85 @@
             showAlert('Sesión cerrada');
         };
 
+        const inputFecha = document.getElementById('fechaDeseada');
+        if (inputFecha) {
+            const hoy = new Date();
+            const year = hoy.getFullYear();
+            const month = String(hoy.getMonth() + 1).padStart(2, '0');
+            const day = String(hoy.getDate()).padStart(2, '0');
+            inputFecha.min = `${year}-${month}-${day}`;
+        }
+
         document.getElementById('formCita')?.addEventListener('submit', async (e) => {
             e.preventDefault();
+
+            const fechaSeleccionada = document.getElementById('fechaDeseada').value;
+            const hoy = new Date();
+            hoy.setHours(0, 0, 0, 0);
+            const fechaCita = new Date(fechaSeleccionada);
+
+            if (fechaCita < hoy) {
+                showAlert('❌ No se pueden agendar citas en fechas pasadas.', 'error');
+                return;
+            }
+
+            const { data: citasDelDia, error } = await supabaseClient
+                .from('citas')
+                .select('id')
+                .eq('fecha_deseada', fechaSeleccionada);
+
+            if (error) {
+                showAlert('Error validando citas: ' + error.message, 'error');
+                return;
+            }
+
+            if (citasDelDia.length >= 5) {
+                showAlert('❌ Día lleno, seleccione otra fecha.', 'error');
+                return;
+            }
+
+            let cedulaValue = document.getElementById('cedula').value.trim().toUpperCase();
+            let cedulaLimpia = cedulaValue.replace('V', '');
+            if (cedulaLimpia.length < 8 || cedulaLimpia.length > 9 || !/^\d+$/.test(cedulaLimpia)) {
+                showAlert('❌ La cédula debe tener entre 8 y 9 dígitos.', 'error');
+                return;
+            }
+
+            const telefonoValue = document.getElementById('telefono').value.trim();
+            if (!/^\d{10,12}$/.test(telefonoValue)) {
+                showAlert('❌ El teléfono debe tener entre 10 y 12 dígitos.', 'error');
+                return;
+            }
+
+            const placaValue = document.getElementById('placa').value.trim().toUpperCase();
+            if (placaValue.length < 3) {
+                showAlert('❌ La placa debe tener al menos 3 caracteres.', 'error');
+                return;
+            }
+
+            const marcaValue = document.getElementById('marca').value.trim();
+            const modeloValue = document.getElementById('modelo').value.trim();
+            const colorValue = document.getElementById('color').value.trim();
+            const propietarioValue = document.getElementById('propietario').value.trim();
+
+            if (!marcaValue || !modeloValue || !colorValue || !propietarioValue) {
+                showAlert('❌ Complete todos los campos.', 'error');
+                return;
+            }
+
             await supabaseClient.from('citas').insert([{
-                fecha_deseada: document.getElementById('fechaDeseada').value,
-                placa: document.getElementById('placa').value.trim().toUpperCase(),
-                marca: document.getElementById('marca').value.trim(),
-                modelo: document.getElementById('modelo').value.trim(),
-                color: document.getElementById('color').value.trim(),
-                propietario: document.getElementById('propietario').value.trim(),
-                cedula: document.getElementById('cedula').value.trim(),
-                telefono: document.getElementById('telefono').value.trim(),
+                fecha_deseada: fechaSeleccionada,
+                placa: placaValue,
+                marca: marcaValue,
+                modelo: modeloValue,
+                color: colorValue,
+                propietario: propietarioValue,
+                cedula: cedulaValue,
+                telefono: telefonoValue,
                 estado: 'pendiente'
             }]);
-            showAlert('Cita solicitada');
+
+            showAlert('✓ Cita solicitada exitosamente. Queda pendiente de aprobación.');
             window.closeModal('modalCita');
             document.getElementById('formCita').reset();
             cargarCitas();
@@ -424,7 +706,7 @@
             e.preventDefault();
             const user = document.getElementById('adminUser').value.trim();
             const pass = document.getElementById('adminPass').value;
-            if (user === 'bernardo1902' && pass === 'aleydiego02276') {
+            if (user === 'bernardo1902' && pass === 'aleydiego0227') {
                 document.getElementById('publicSite').style.display = 'none';
                 document.getElementById('adminPanel').style.display = 'block';
                 window.closeModal('modalAdmin');
@@ -432,12 +714,6 @@
                 showAlert('Bienvenido');
             } else { showAlert('Credenciales incorrectas', 'error'); }
         });
-
-        document.getElementById('servicios-container').innerHTML = [
-            { titulo: "DIAGNOSIS CON ESCÁNER", icono: "🔍", descripcion: "Escaneo computarizado" },
-            { titulo: "FRENOS Y SUSPENSIÓN", icono: "⚙️", descripcion: "Mantenimiento completo" },
-            { titulo: "ELECTRICIDAD TOTAL", icono: "🔌", descripcion: "Sistema eléctrico" }
-        ].map(s => `<div class="bg-card-gray border-t-4 border-bm-red p-10 flex flex-col items-center"><div class="text-5xl text-bm-red mb-6">${s.icono}</div><h4 class="font-bold text-xl mb-4 uppercase italic">${s.titulo}</h4><p class="text-sm text-gray-400 mb-8">${s.descripcion}</p><button onclick="window.openModal('modalCita')" class="border-2 border-bm-red text-bm-red font-bold py-2 px-6 rounded">Agendar</button></div>`).join('');
     </script>
 </body>
 </html>
